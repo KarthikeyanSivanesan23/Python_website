@@ -4,10 +4,13 @@ dist/
 __pycache__/
 *.pyc
 .env
+.env.local
 *.sqlite3
+staticfiles/
 test-results/
 playwright-report/
 *.log
 .logs/
 logs/
 *.tsbuildinfo
+.vercel

@@ -1,0 +1,12 @@
+.git
+.vercel
+logs
+**/node_modules
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.sqlite3
+**/staticfiles
+frontend/dist
+frontend/test-results
+frontend/playwright-report

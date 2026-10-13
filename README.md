@@ -200,8 +200,58 @@ By default tests refuse occupied server ports. After checking ownership, set `$e
 
 Screenshots and failure traces are written to `frontend/test-results/` (ignored). Unit tests cover algorithm edge cases; backend tests cover CSRF, persistence, ownership, validation, unavailable mentor behavior, seeding, and authored content. Browser tests exercise real Pyodide, not canned output.
 
+## Deploying to Vercel
+
+The repository ships a `vercel.json` that uses [Vercel Services](https://vercel.com/docs/services) to build both applications as one deployment on one domain:
+
+- `frontend/` builds to `frontend/dist` and serves every non-API path, including client-side routes such as `/learn/<slug>` and `/status`.
+- `backend/` runs the Django WSGI app as a Vercel Function. `/api/*`, `/admin/*`, and `/static/*` are routed to it, so requests stay same-origin and the browser keeps its session cookie and CSRF token.
+
+### Required project settings
+
+Set the project Framework to **Services** in *Settings → Build and Deployment*. A project builds as services only when that is selected **and** `vercel.json` contains a `services` key. The frontend service pins Node from `frontend/package.json`; the backend service pins Python from `backend/.python-version`.
+
+### Required environment variables
+
+| Variable | Value |
+| --- | --- |
+| `DJANGO_SECRET_KEY` | A long random secret. |
+| `DJANGO_DEBUG` | `false` |
+| `DJANGO_ALLOWED_HOSTS` | e.g. `.vercel.app`, plus any custom domain |
+| `DATABASE_URL` | PostgreSQL URL including `?sslmode=require` |
+| `DJANGO_SECURE_COOKIES` | `true` |
+| `DJANGO_BEHIND_PROXY` | `true` |
+
+Optional: `DJANGO_CSRF_TRUSTED_ORIGINS` (only when an extra custom domain is added; same-origin requests need no entry), `OLLAMA_BASE_URL`, and `OLLAMA_MODEL`.
+
+### Deploy and first-time setup
+
+Link the project, add the variables, and deploy:
+
+```powershell
+vercel link --yes --project <project-name>
+vercel env add DJANGO_SECRET_KEY production
+# repeat for every variable above, or set them in the project dashboard
+vercel deploy --prod
+```
+
+Vercel installs `backend/requirements.txt`, runs `collectstatic`, and serves the collected admin/static files. It never runs migrations or seeding. Do those once against the hosted database from this project directory:
+
+```powershell
+$env:DATABASE_URL = "postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require"
+& .\backend\.venv\Scripts\python.exe backend\manage.py migrate
+& .\backend\.venv\Scripts\python.exe backend\manage.py seed_content
+& .\backend\.venv\Scripts\python.exe backend\manage.py createsuperuser
+```
+
+### Vercel differences
+
+- Browser Python execution uses Pyodide, so it is unaffected by hosting.
+- The mentor cannot reach `localhost:11434` from Vercel. Readiness reports Ollama as unavailable and the mentor shows its honest unavailable state until `OLLAMA_BASE_URL` points at a publicly reachable instance.
+- Functions have a maximum duration (60 seconds on Hobby), and each function instance is ephemeral, so the in-process inference semaphore and rate limiting described below do not coordinate across instances.
+
 ## Hosting note
 
-No infrastructure is deployed or purchased. `localhost:11434` works when Django and Ollama run on the same local machine. For public hosting, **the deployed backend** must be able to reach a hosted Ollama instance; visitors do not need Ollama installed.
+No infrastructure is deployed or purchased by this repository. `localhost:11434` works when Django and Ollama run on the same local machine. For public hosting, **the deployed backend** must be able to reach a hosted Ollama instance; visitors do not need Ollama installed.
 
 Before hosting, configure HTTPS, a private database, a strong secret, secure cookies, permitted hosts/origins, static files, and same-origin `/api` routing. The Vite development proxy is not a production web server. Use a supported Django deployment server and reverse proxy; `npm run build` emits the frontend to `frontend/dist`. Review resource limits and shared inference coordination for the intended load. This release is not claimed to be production-ready.
