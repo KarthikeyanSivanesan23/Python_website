@@ -1,4 +1,4 @@
-# [PROJECT_NAME]
+# LearnPcode
 
 A connected Python and DSA learning application: scroll through a lesson, step through its procedural visual, write actual Python in a browser worker, ask your local Ollama mentor for guidance, and keep personal practice history in Django.
 
